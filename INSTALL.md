@@ -16,13 +16,16 @@ should cover. Section 0 below explains every prerequisite in detail.
    and attach **Serverless** compute (or any Unity Catalog compute).
 3. **Fill in the boxes** at the top of the notebook (click **Run all** once if
    they don't show yet):
-   - **Catalogs** — comma-separated, e.g. `bronze_cat, silver_cat, gold_cat`
+   - **Catalogs** — `all` (the default) covers every catalog you can see;
+     or list them, e.g. `bronze_cat, silver_cat, gold_cat`. In production a
+     list is usually better, because the app gets read access (and `MANAGE`)
+     on every catalog it covers
    - **Admin group** — who can open UCViz's Admin page
    - **Users group** — who can use the app
    - **SQL warehouse** — name or ID (empty = first serverless warehouse)
    - **Create demo data** — `yes` only for a test workspace: builds a small
      synthetic bronze → silver → gold demo so you can see UCViz working
-     before pointing it at real data (catalogs can then be left empty)
+     before pointing it at real data
    - leave the rest as they are
 4. **Click Run all.** It creates the app, binds the warehouse, writes the
    configuration, grants the app read access, makes its service principal a

@@ -17,7 +17,7 @@
 # MAGIC
 # MAGIC | Box | What to enter |
 # MAGIC |---|---|
-# MAGIC | `catalogs` | Comma-separated catalogs UCViz should cover, e.g. `bronze_cat, silver_cat, gold_cat` (**required**) |
+# MAGIC | `catalogs` | `all` (default) = every catalog you can see, or a comma-separated list, e.g. `bronze_cat, silver_cat, gold_cat`. On a production metastore a list is usually better: the app's service principal gets read (and, with `grant_manage`, MANAGE) on each covered catalog |
 # MAGIC | `admin_group` | Group whose members can open UCViz's Admin page |
 # MAGIC | `users_group` | Group allowed to use the app (gets *Can Use*) |
 # MAGIC | `warehouse` | SQL warehouse **name or ID**. Leave empty to use the first serverless warehouse |
@@ -37,7 +37,7 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalogs", "", "1. Catalogs (comma-separated)")
+dbutils.widgets.text("catalogs", "all", "1. Catalogs (all, or comma-separated)")
 dbutils.widgets.text("admin_group", "", "2. Admin group")
 dbutils.widgets.text("users_group", "", "3. Users group (Can Use)")
 dbutils.widgets.text("warehouse", "", "4. SQL warehouse name or ID")
@@ -63,7 +63,12 @@ from databricks.sdk.service.workspace import ImportFormat
 w = WorkspaceClient()
 me = w.current_user.me()
 
-CATALOGS = [c.strip() for c in dbutils.widgets.get("catalogs").split(",") if c.strip()]
+_cats = dbutils.widgets.get("catalogs").strip()
+# "all" (or empty) = every catalog the person running this can see.
+ALL_CATALOGS = _cats.lower() in ("", "all", "*")
+CATALOGS = [] if ALL_CATALOGS else [c.strip() for c in _cats.split(",") if c.strip()]
+# Never covered under "all": built-in or internal catalogs.
+SKIP_CATALOGS = {"system", "samples", "hive_metastore"}
 ADMIN_GROUP = dbutils.widgets.get("admin_group").strip()
 USERS_GROUP = dbutils.widgets.get("users_group").strip()
 WAREHOUSE = dbutils.widgets.get("warehouse").strip()
@@ -94,9 +99,6 @@ def step(name, status, detail=""):
 
 if not re.fullmatch(r"[a-z0-9-]{2,30}", APP_NAME):
     raise ValueError("app_name: 2–30 characters, lowercase letters, numbers and '-' only.")
-if ACTION == "install" and not CATALOGS and not DEMO:
-    raise ValueError("Fill in 'catalogs' (top of the page) with the catalogs UCViz should "
-                     "cover, or set 'create_demo_data' to yes.")
 print(f"Running as {me.user_name}\nRepo: {REPO_ROOT}\nDeploy folder: {DEPLOY_DIR}\nApp: {APP_NAME}")
 
 # COMMAND ----------
@@ -241,7 +243,16 @@ if ACTION == "install" and DEMO:
     for cat in build_demo():
         if cat not in CATALOGS:
             CATALOGS.append(cat)
-    print(f"Catalogs UCViz will cover: {CATALOGS}")
+
+if ACTION == "install" and ALL_CATALOGS:
+    for row in spark.sql("SHOW CATALOGS").collect():
+        cat = row[0]
+        if cat not in SKIP_CATALOGS and not cat.startswith("__") and cat not in CATALOGS:
+            CATALOGS.append(cat)
+if ACTION == "install" and not CATALOGS:
+    raise ValueError("No catalogs found to cover. Enter catalog names in 'catalogs', "
+                     "or set 'create_demo_data' to yes.")
+print(f"Catalogs UCViz will cover: {CATALOGS}")
 
 # COMMAND ----------
 
@@ -319,7 +330,8 @@ cfg_path = os.path.join(REPO_ROOT, "config", "app_config.yaml")
 with open(cfg_path) as f:
     cfg_text = f.read()
 cfg = yaml.safe_load(cfg_text) or {}
-cfg["catalogs"] = CATALOGS
+# "all" leaves the app unfiltered, so catalogs granted to it later show up too.
+cfg["catalogs"] = [] if ALL_CATALOGS else CATALOGS
 cfg["admin_groups"] = sorted({*(cfg.get("admin_groups") or []), *([ADMIN_GROUP] if ADMIN_GROUP else [])})
 cfg["query_identity"] = "app"
 
@@ -346,7 +358,7 @@ for root, dirs, files in os.walk(REPO_ROOT):
         copied += 1
 
 step("Copy app source", "OK", f"{copied} files → {DEPLOY_DIR}")
-step("Configuration", "OK", f"catalogs={CATALOGS}, admin_groups={cfg['admin_groups']}")
+step("Configuration", "OK", f"catalogs={cfg['catalogs'] or 'all'}, admin_groups={cfg['admin_groups']}")
 
 # COMMAND ----------
 
