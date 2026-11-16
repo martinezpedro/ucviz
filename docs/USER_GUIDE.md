@@ -183,7 +183,9 @@ masked columns, and unclassified sensitive columns.
 ### Admin (UCViz administrators only)
 
 - **Catalog Access** — which catalogs UCViz may scan, default hops, and the
-  table limit before narrowing is required.
+  table limit before narrowing is required. Changes here last until the next
+  deploy; to change the catalog list for good, re-run the installer (see "For
+  administrators").
 - **Connection Test** — checks that the app can read every system table it
   needs. Run this first when something looks empty.
 - **Layer Mapping** — rules that decide which layer a table belongs to (see
@@ -298,7 +300,8 @@ The most common reasons:
 
 1. The app's service principal has no visibility on it (it needs at least
    BROWSE, or USE CATALOG / USE SCHEMA, on the catalog).
-2. Your administrator limited the scanned catalogs (Admin → Catalog Access).
+2. It isn't in the catalogs UCViz was installed for. Your administrator adds
+   it by re-running the installer with the catalog in the **Catalogs** box.
 3. The catalog isn't bound to the workspace where UCViz runs.
 4. It was created in the last few minutes — the catalog and schema lists
    refresh every 10 minutes.
@@ -392,6 +395,30 @@ selected node. The other person needs access to the app.
 Admin opens only for members of the groups listed in the app's configuration
 (`admin_groups`). Ask an existing UCViz administrator to add you or your group.
 
+### How do I add or remove a catalog?
+
+Open the `install/UCViz_Installer` notebook in the UCViz Git folder, change the
+**Catalogs** box (`all`, or a comma-separated list such as
+`sales_gold, sales_silver, finance_gold`) and click **Run all**. The same app is
+updated and the URL doesn't change. Removing a catalog hides it from UCViz but
+doesn't revoke the grants already given to the app; the catalog owner can
+revoke them (see "For administrators").
+
+### How do I update UCViz to a newer version?
+
+In the UCViz Git folder click the branch name (`main`) → **Pull**, then open
+`install/UCViz_Installer` and click **Run all**. No re-import is needed and the
+URL doesn't change.
+
+### Can I try UCViz without pointing it at real data?
+
+Yes. In the installer set **Create demo data** to `yes`. It builds a small
+synthetic bronze → silver → gold demo (catalogs `ucviz_demo_bronze`,
+`ucviz_demo_silver`, `ucviz_demo_gold`, or three schemas if the workspace
+can't create catalogs) with lineage, tags and a mask. Then open
+`ucviz_demo_gold` → `sales` → `customer_360`. To remove it, run the installer
+with **Action** = `uninstall` and **Create demo data** = `yes`.
+
 ### Who do I ask if something is still wrong?
 
 Start with your UCViz administrator — they can run **Admin → Connection
@@ -399,6 +426,41 @@ Test**, which shows exactly which system table or catalog the app can't read.
 The "For administrators" tab lists what each check needs.
 
 ## For administrators
+
+### Install, update or remove
+
+UCViz is installed from a notebook, no CLI needed (full steps in `INSTALL.md`
+in the repository):
+
+1. **Workspace → Create → Git folder** → `https://github.com/martinezpedro/ucviz`.
+2. Open **`install/UCViz_Installer`**, attach **Serverless** compute.
+3. Fill in the boxes at the top (click **Run all** once if they don't show):
+
+| Box | What to enter |
+|---|---|
+| Catalogs | `all` (default) = every catalog you can see, or a comma-separated list. In production a list is usually better: the app gets read access, and MANAGE if enabled, on each covered catalog. |
+| Admin group | Group allowed into the Admin page. |
+| Users group | Group allowed to use the app (Can Use). |
+| SQL warehouse | Name or ID; empty = a running serverless warehouse. |
+| App name | Default `ucviz`. |
+| Grant MANAGE | `yes` so the app can see everyone's grants (needs security sign-off). |
+| Make app SP workspace admin | `yes` so Principal Access can read group memberships. |
+| Action | `install` (also updates) or `uninstall`. |
+| Create demo data | `yes` only on a test workspace. |
+
+4. Click **Run all**. The summary at the bottom shows the app URL, what was
+   done, and the exact SQL for any grant your account couldn't make (usually
+   the `system.access` ones, which need an account or metastore admin).
+
+**Update:** Git folder → **Pull**, then **Run all** again. **Change catalogs:**
+edit the Catalogs box, **Run all**. **Remove:** Action = `uninstall`, **Run all**.
+Removing a catalog from the list doesn't revoke the app's grants on it; to do
+that, the catalog owner runs:
+
+```sql
+REVOKE MANAGE ON CATALOG <catalog> FROM `<app-sp-application-id>`;
+REVOKE BROWSE, USE CATALOG, USE SCHEMA ON CATALOG <catalog> FROM `<app-sp-application-id>`;
+```
 
 ### What the app needs
 
@@ -431,7 +493,7 @@ GRANT MANAGE ON CATALOG <catalog> TO `<app-sp-application-id>`;
 
 | Key | Purpose |
 |---|---|
-| `catalogs` | Catalogs UCViz may scan. Empty = every catalog the app can see — set it. |
+| `catalogs` | Catalogs UCViz may scan. Empty = every catalog the app can see (what the installer writes for `all`). |
 | `admin_groups` | Groups allowed into the Admin page. |
 | `query_identity` | `app` (default: the service principal runs all queries) or `viewer` (queries run as the signed-in user). |
 | `max_hops` | Default lineage depth. |
