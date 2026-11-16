@@ -145,8 +145,9 @@ Viewers need only `CAN_USE` on the app. Details: PREREQUISITES.md §5.
 
 ## Demo data (optional)
 
-UCViz needs no demo data — it reads whatever is already in Unity Catalog. To
-try it on a known lineage in a dev workspace, `scripts/seed_cross_catalog_demo.py`
+UCViz needs no demo data — it reads whatever is already in Unity Catalog. The
+easiest way to try it on a known lineage is the installer's **Create demo data
+= yes** box. From a laptop, `scripts/seed_cross_catalog_demo.py`
 builds a synthetic catalog-per-layer demo: `<prefix>_bronze/_silver/_gold`
 catalogs (prefix `ucviz_demo` by default), schema `sales`, cross-catalog
 CTAS/INSERT lineage, tags, a mask, and grants for two test groups,

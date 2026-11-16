@@ -20,6 +20,9 @@ should cover. Section 0 below explains every prerequisite in detail.
    - **Admin group** — who can open UCViz's Admin page
    - **Users group** — who can use the app
    - **SQL warehouse** — name or ID (empty = first serverless warehouse)
+   - **Create demo data** — `yes` only for a test workspace: builds a small
+     synthetic bronze → silver → gold demo so you can see UCViz working
+     before pointing it at real data (catalogs can then be left empty)
    - leave the rest as they are
 4. **Click Run all.** It creates the app, binds the warehouse, writes the
    configuration, grants the app read access, makes its service principal a

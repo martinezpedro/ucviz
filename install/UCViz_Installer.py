@@ -257,9 +257,12 @@ def pick_warehouse(value):
                 return wh
         raise ValueError(f"No SQL warehouse with name or ID '{value}'. Available: "
                          + ", ".join(f"{x.name} ({x.id})" for x in whs))
-    serverless = [x for x in whs if x.enable_serverless_compute]
-    if serverless or whs:
-        return (serverless or whs)[0]
+    # Prefer a running serverless warehouse, then any serverless, then anything.
+    def rank(x):
+        running = (x.state.value if x.state else "") == "RUNNING"
+        return (not x.enable_serverless_compute, not running, x.name or "")
+    if whs:
+        return sorted(whs, key=rank)[0]
     raise ValueError("No SQL warehouse found — create one (SQL Warehouses → Create) and re-run.")
 
 
