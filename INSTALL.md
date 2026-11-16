@@ -1,12 +1,52 @@
-# Installing UCViz — step by step
+# Installing UCViz
 
-This guide takes you from an empty workspace to a running UCViz app. It
-assumes no prior knowledge of the app. Allow about 45 minutes, most of it
-waiting for the right people to run a few grants.
+There are two ways to install. **Use the Quick install** unless you prefer the
+command line. Both end in the same app. What the app does and how to use it is
+in the in-app **Help → User Guide** (source: `docs/USER_GUIDE.md`).
 
-If something doesn't work, jump to [Troubleshooting](#troubleshooting) at the
-end. What the app does and how to use it is in the in-app **Help → User
-Guide** (source: `docs/USER_GUIDE.md`).
+## Quick install — from a notebook, no CLI (about 15 minutes)
+
+**You need:** to be a **workspace admin**, and the names of the catalogs UCViz
+should cover. Section 0 below explains every prerequisite in detail.
+
+1. **Import the code.** In the workspace: **Workspace → Create → Git folder**
+   → *Git repository URL* `https://github.com/martinezpedro/ucviz` → **Create
+   Git folder**.
+2. **Open the installer.** In the new folder open **`install/UCViz_Installer`**
+   and attach **Serverless** compute (or any Unity Catalog compute).
+3. **Fill in the boxes** at the top of the notebook (click **Run all** once if
+   they don't show yet):
+   - **Catalogs** — comma-separated, e.g. `bronze_cat, silver_cat, gold_cat`
+   - **Admin group** — who can open UCViz's Admin page
+   - **Users group** — who can use the app
+   - **SQL warehouse** — name or ID (empty = first serverless warehouse)
+   - leave the rest as they are
+4. **Click Run all.** It creates the app, binds the warehouse, writes the
+   configuration, grants the app read access, makes its service principal a
+   workspace admin, deploys, and sets who can use it. First run: 5–10 minutes.
+5. **Read the summary** at the bottom: the app URL, what was done, and — if
+   your account couldn't make some grants (usually the two `system.access`
+   ones, which need an account or metastore admin) — the exact SQL to send to
+   that person. Once they've run it, open the app.
+
+**Check it works:** open the app → **Settings → Admin → Connection Test** —
+every line should say **Granted**.
+
+**Update later:** in the Git folder click **Pull** (top right), then open the
+installer and **Run all** again. **Remove:** set *Action* to `uninstall` and
+**Run all**.
+
+Before running it, agree with your security team that the app's service
+principal may hold `MANAGE` on the covered catalogs and be a workspace admin
+(see 0.4). Either can be switched off in the installer boxes.
+
+---
+
+# Manual install — step by step (CLI)
+
+This route does the same as the Quick install, by hand. Allow about 45
+minutes, most of it waiting for the right people to run a few grants. If
+something doesn't work, jump to [Troubleshooting](#troubleshooting) at the end.
 
 ---
 

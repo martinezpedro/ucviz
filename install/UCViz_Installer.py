@@ -326,7 +326,10 @@ if manual_sql:
         by_who.setdefault(who, []).append(sql)
     todo = "<h3>Still to do — send this SQL to the right person</h3>" + "".join(
         f"<p><b>{who}</b> runs:</p><pre>{chr(10).join(sqls)}</pre>" for who, sqls in by_who.items())
-    todo += "<p>Then re-run this notebook (or just reload the app).</p>"
+    todo += ("<p>Then re-run this notebook (or just reload the app). If <b>Admin → "
+             "Connection Test</b> in the app already shows <b>Granted</b> for every "
+             "line, the access is already covered (for example by a grant to "
+             "<code>account users</code>) and you can ignore these.</p>")
 displayHTML(f"""
 <h2>UCViz: {'ready' if not manual_sql else 'installed — a few grants still needed'}</h2>
 <p><b>Open the app:</b> <a href="{app.url}" target="_blank">{app.url}</a></p>

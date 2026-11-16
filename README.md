@@ -1,7 +1,9 @@
 # UCViz — Unity Catalog Visualizer (V1)
 
-> **Installing?** Follow [INSTALL.md](INSTALL.md) — prerequisites and every
-> step from an empty workspace to a running app. **Using it?** Open
+> **Installing?** Import this repo as a **Git folder**, open
+> `install/UCViz_Installer`, fill in the boxes and **Run all** — see
+> [INSTALL.md](INSTALL.md) (Quick install, plus a manual route and all
+> prerequisites). **Using it?** Open
 > **Help → User Guide** in the app ([docs/USER_GUIDE.md](docs/USER_GUIDE.md)).
 
 A read-only Databricks App (Streamlit) that visualizes **lineage, effective
@@ -61,6 +63,8 @@ are all dynamic or admin-configured. Nothing is hardcoded to a customer.
 UC_Visualizer/                    # deploy root (== "ucviz/")
 ├── app.py                        # entrypoint: st.navigation page router
 ├── app.yaml                      # Databricks Apps config (warehouse resource)
+├── install/
+│   └── UCViz_Installer.py        # notebook installer: create, grant, deploy, update, uninstall
 ├── requirements.txt
 ├── views/                        # page files (loaded only via st.navigation in app.py)
 │   ├── lineage_access.py         # Lineage & Access: lineage, permissions, tags, health
