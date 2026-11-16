@@ -25,6 +25,7 @@
 # MAGIC | `grant_manage` | `yes` = grant MANAGE on the catalogs so the app can see everyone's grants (recommended; needs security sign-off) |
 # MAGIC | `make_sp_workspace_admin` | `yes` = add the app's service principal to the workspace `admins` group so it can read users' group memberships |
 # MAGIC | `action` | `install` (also updates) or `uninstall` |
+# MAGIC | `create_demo_data` | `yes` = also build a small synthetic bronze → silver → gold demo (catalogs `ucviz_demo_bronze/_silver/_gold`) with lineage, tags and grants, and add it to the covered catalogs. Handy for a test or Free Edition workspace. With `uninstall`, `yes` also removes it. |
 
 # COMMAND ----------
 
@@ -44,6 +45,7 @@ dbutils.widgets.text("app_name", "ucviz", "5. App name")
 dbutils.widgets.dropdown("grant_manage", "yes", ["yes", "no"], "6. Grant MANAGE on catalogs")
 dbutils.widgets.dropdown("make_sp_workspace_admin", "yes", ["yes", "no"], "7. Make app SP workspace admin")
 dbutils.widgets.dropdown("action", "install", ["install", "uninstall"], "8. Action")
+dbutils.widgets.dropdown("create_demo_data", "no", ["no", "yes"], "9. Create demo data")
 
 # COMMAND ----------
 
@@ -69,6 +71,9 @@ APP_NAME = dbutils.widgets.get("app_name").strip() or "ucviz"
 GRANT_MANAGE = dbutils.widgets.get("grant_manage") == "yes"
 MAKE_ADMIN = dbutils.widgets.get("make_sp_workspace_admin") == "yes"
 ACTION = dbutils.widgets.get("action")
+DEMO = dbutils.widgets.get("create_demo_data") == "yes"
+DEMO_CATALOGS = ["ucviz_demo_bronze", "ucviz_demo_silver", "ucviz_demo_gold"]
+DEMO_SCHEMAS = ["ucviz_demo_bronze", "ucviz_demo_silver", "ucviz_demo_gold"]
 
 # Where the Git folder (this repo) lives, and where the app's source is deployed
 # from. The deploy folder is a copy with the generated config, so the Git folder
@@ -89,8 +94,9 @@ def step(name, status, detail=""):
 
 if not re.fullmatch(r"[a-z0-9-]{2,30}", APP_NAME):
     raise ValueError("app_name: 2–30 characters, lowercase letters, numbers and '-' only.")
-if ACTION == "install" and not CATALOGS:
-    raise ValueError("Fill in 'catalogs' (top of the page) with the catalogs UCViz should cover.")
+if ACTION == "install" and not CATALOGS and not DEMO:
+    raise ValueError("Fill in 'catalogs' (top of the page) with the catalogs UCViz should "
+                     "cover, or set 'create_demo_data' to yes.")
 print(f"Running as {me.user_name}\nRepo: {REPO_ROOT}\nDeploy folder: {DEPLOY_DIR}\nApp: {APP_NAME}")
 
 # COMMAND ----------
@@ -99,7 +105,25 @@ print(f"Running as {me.user_name}\nRepo: {REPO_ROOT}\nDeploy folder: {DEPLOY_DIR
 
 # COMMAND ----------
 
+def drop_demo():
+    """Remove the demo data in either layout (own catalogs, or schemas)."""
+    for cat in DEMO_CATALOGS:
+        try:
+            spark.sql(f"DROP CATALOG IF EXISTS `{cat}` CASCADE")
+        except Exception:
+            pass
+    fallback = CATALOGS[0] if CATALOGS else spark.sql("SELECT current_catalog()").first()[0]
+    for sch in DEMO_SCHEMAS:
+        try:
+            spark.sql(f"DROP SCHEMA IF EXISTS `{fallback}`.`{sch}` CASCADE")
+        except Exception:
+            pass
+
+
 if ACTION == "uninstall":
+    if DEMO:
+        drop_demo()
+        step("Remove demo data", "OK")
     try:
         w.apps.delete(APP_NAME)
         step("Delete app", "OK", APP_NAME)
@@ -112,6 +136,112 @@ if ACTION == "uninstall":
         step("Delete deploy folder", "SKIPPED", str(e)[:200])
     print("\nThe app's service principal is removed with the app; its grants go with it.")
     dbutils.notebook.exit("uninstalled")
+
+# COMMAND ----------
+
+# MAGIC %md ## 0. Demo data (only when create_demo_data = yes)
+
+# COMMAND ----------
+
+def build_demo():
+    """Synthetic bronze -> silver -> gold demo with cross-layer lineage.
+
+    Tries one catalog per layer first; if the workspace can't create catalogs,
+    falls back to three schemas inside an existing catalog. Returns the
+    catalogs UCViz should cover for it.
+    """
+    try:
+        for cat in DEMO_CATALOGS:
+            spark.sql(f"CREATE CATALOG IF NOT EXISTS `{cat}` "
+                      "COMMENT 'UCViz demo data (synthetic) — safe to delete'")
+        layers = [f"`{c}`.`sales`" for c in DEMO_CATALOGS]
+        for sch in layers:
+            spark.sql(f"CREATE SCHEMA IF NOT EXISTS {sch}")
+        covered = list(DEMO_CATALOGS)
+        layout = "catalogs " + ", ".join(DEMO_CATALOGS)
+    except Exception as e:
+        fallback = CATALOGS[0] if CATALOGS else spark.sql("SELECT current_catalog()").first()[0]
+        print(f"Can't create catalogs here ({str(e).splitlines()[0][:120]}) — "
+              f"using schemas in catalog '{fallback}' instead.")
+        layers = [f"`{fallback}`.`{s}`" for s in DEMO_SCHEMAS]
+        for sch in layers:
+            spark.sql(f"CREATE SCHEMA IF NOT EXISTS {sch} "
+                      "COMMENT 'UCViz demo data (synthetic) — safe to delete'")
+        covered = [fallback]
+        layout = f"schemas {', '.join(DEMO_SCHEMAS)} in {fallback}"
+    B, S, G = layers
+
+    core = [
+        f"""CREATE OR REPLACE TABLE {B}.raw_customers COMMENT 'Raw CRM customer extract' AS
+        SELECT id AS customer_id,
+          element_at(array('Ava','Liam','Noah','Emma','Olivia','Sophia','Mateo','Lucas','Mia','Ethan'), cast(pmod(id,10)+1 AS int)) AS first_name,
+          element_at(array('Kim','Patel','Garcia','Chen','Nguyen','Silva','Muller','Haddad','Rossi','Okafor'), cast(pmod(id*7,10)+1 AS int)) AS last_name,
+          concat('user', id, '@example.com') AS email,
+          concat('+1-555-', lpad(cast(pmod(id*13,10000) AS string),4,'0')) AS phone,
+          element_at(array('North','South','East','West','Central'), cast(pmod(id,5)+1 AS int)) AS region
+        FROM (SELECT explode(sequence(1,500)) AS id)""",
+        f"""CREATE OR REPLACE TABLE {B}.raw_products COMMENT 'Raw product master' AS
+        SELECT id AS product_id,
+          element_at(array('Flash 1TB','SSD 2TB','Card 256GB','USB 128GB','HDD 8TB'), cast(id AS int)) AS product_name,
+          element_at(array('Flash','SSD','Card','USB','HDD'), cast(id AS int)) AS category
+        FROM (SELECT explode(sequence(1,5)) AS id)""",
+        f"""CREATE OR REPLACE TABLE {B}.raw_orders COMMENT 'Raw order events' AS
+        SELECT id AS order_id, cast(pmod(id*13,500)+1 AS int) AS customer_id,
+          cast(pmod(id*3,5)+1 AS int) AS product_id,
+          date_add(DATE'2026-01-01', cast(pmod(id,300) AS int)) AS order_date,
+          round(rand(42)*490+10, 2) AS amount,
+          element_at(array('PLACED','SHIPPED','DELIVERED','CANCELLED','RETURNED'), cast(pmod(id,5)+1 AS int)) AS status
+        FROM (SELECT explode(sequence(1,2000)) AS id)""",
+        f"""CREATE OR REPLACE TABLE {S}.customers COMMENT 'Conformed customers' AS
+        SELECT customer_id, initcap(first_name) AS first_name, initcap(last_name) AS last_name,
+          lower(email) AS email, phone, region FROM {B}.raw_customers""",
+        f"""CREATE OR REPLACE TABLE {S}.products COMMENT 'Conformed products' AS
+        SELECT product_id, product_name, category FROM {B}.raw_products""",
+        f"""CREATE OR REPLACE TABLE {S}.orders COMMENT 'Valid orders with customer region' AS
+        SELECT o.order_id, o.customer_id, o.product_id, o.order_date, o.amount, o.status, c.region
+        FROM {B}.raw_orders o JOIN {S}.customers c ON o.customer_id = c.customer_id
+        WHERE o.status <> 'CANCELLED'""",
+        f"""CREATE OR REPLACE TABLE {G}.customer_360 COMMENT 'One row per customer with lifetime value' AS
+        SELECT c.customer_id, c.first_name, c.last_name, c.region,
+          count(o.order_id) AS lifetime_orders, round(coalesce(sum(o.amount),0),2) AS lifetime_value
+        FROM {S}.customers c LEFT JOIN {S}.orders o ON c.customer_id = o.customer_id
+        GROUP BY c.customer_id, c.first_name, c.last_name, c.region""",
+        f"""CREATE OR REPLACE TABLE {G}.sales_by_region COMMENT 'Monthly sales by region and category' AS
+        SELECT o.region, p.category, date_trunc('MONTH', o.order_date) AS sales_month,
+          count(*) AS order_count, round(sum(o.amount),2) AS total_sales
+        FROM {S}.orders o JOIN {S}.products p ON o.product_id = p.product_id
+        GROUP BY o.region, p.category, date_trunc('MONTH', o.order_date)""",
+    ]
+    for sql in core:
+        spark.sql(sql)
+    # Optional extras — skipped quietly if tag policies or permissions refuse them.
+    extras = [
+        f"ALTER TABLE {S}.customers SET TAGS ('classification'='restricted')",
+        f"ALTER TABLE {G}.customer_360 SET TAGS ('classification'='restricted')",
+        f"ALTER TABLE {G}.sales_by_region SET TAGS ('classification'='public')",
+        f"ALTER TABLE {S}.customers ALTER COLUMN email SET TAGS ('classification'='restricted')",
+        f"""CREATE OR REPLACE FUNCTION {S}.mask_email(v STRING)
+            RETURN CASE WHEN is_account_group_member('admins') THEN v
+                   ELSE regexp_replace(v, '(^.).*(@.*$)', '$1***$2') END""",
+        f"ALTER TABLE {S}.customers ALTER COLUMN email SET MASK {S}.mask_email",
+        f"GRANT SELECT ON TABLE {G}.sales_by_region TO `account users`",
+    ]
+    skipped = 0
+    for sql in extras:
+        try:
+            spark.sql(sql)
+        except Exception:
+            skipped += 1
+    step("Demo data", "OK", f"8 tables in {layout}"
+         + (f" ({skipped} optional tag/mask/grant statements skipped)" if skipped else ""))
+    return covered
+
+
+if ACTION == "install" and DEMO:
+    for cat in build_demo():
+        if cat not in CATALOGS:
+            CATALOGS.append(cat)
+    print(f"Catalogs UCViz will cover: {CATALOGS}")
 
 # COMMAND ----------
 
@@ -330,8 +460,12 @@ if manual_sql:
              "Connection Test</b> in the app already shows <b>Granted</b> for every "
              "line, the access is already covered (for example by a grant to "
              "<code>account users</code>) and you can ignore these.</p>")
+demo_hint = ("<p><b>Demo data:</b> in the app pick catalog <code>ucviz_demo_gold</code> (or the "
+             "<code>ucviz_demo_gold</code> schema) → <code>customer_360</code>. Lineage can take a few "
+             "minutes to appear the first time.</p>") if DEMO else ""
 displayHTML(f"""
 <h2>UCViz: {'ready' if not manual_sql else 'installed — a few grants still needed'}</h2>
+{demo_hint}
 <p><b>Open the app:</b> <a href="{app.url}" target="_blank">{app.url}</a></p>
 <p>First check: in the app, <b>Settings → Admin → Connection Test</b> — every line should say <b>Granted</b>.
 Users: <b>Help → User Guide</b> in the app.</p>
