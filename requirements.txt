@@ -1,0 +1,9 @@
+databricks-sdk>=0.29.0
+databricks-sql-connector>=3.1.0
+streamlit>=1.37.0
+streamlit-extras>=0.4.0
+pandas>=2.0.0
+networkx>=3.1
+plotly>=5.22.0
+streamlit-flow-component>=1.6.0
+pyyaml>=6.0

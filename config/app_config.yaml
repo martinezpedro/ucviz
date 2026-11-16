@@ -1,0 +1,89 @@
+# -----------------------------------------------------------------------------
+# UCViz admin-managed configuration.
+#
+# Nothing here is customer-specific by default. The Admin panel (pages/admin.py)
+# edits this file. If the app's runtime filesystem is read-only, edits live in
+# session state for the session and can be downloaded for redeploy.
+# -----------------------------------------------------------------------------
+
+# Catalogs the app is allowed to scan. Empty list => scan every catalog the
+# caller can see via system.information_schema.
+catalogs: []
+
+# Which identity runs SQL: "app" (default — the app service principal runs
+# every query; viewers need no grants of their own, so restrict CAN_USE on the
+# app to the dedicated admin group, since every app user sees what the SP sees)
+# or "viewer" (on-behalf-of-user — results reflect what the signed-in user can
+# see). The lineage REST API and SCIM lookups always use the SP.
+query_identity: app
+
+# Lineage walk depth (max hops in each direction).
+max_hops: 5
+
+# Max tables a whole-schema pick may graph before the user is required to
+# narrow the scope (by layer, tag, name, or group) or pick a single table.
+max_graph_tables: 50
+
+# Layer classification rules. Each rule matches a case-insensitive substring
+# against the fully-qualified table name; first match wins, top to bottom.
+# Layers must be one of: EXTERNAL, BRONZE, SILVER, GOLD, CONSUMER.
+layer_rules:
+  - match: semantic
+    layer: GOLD
+  - match: gold
+    layer: GOLD
+  - match: consumer
+    layer: CONSUMER
+  - match: mart
+    layer: CONSUMER
+  - match: curated
+    layer: SILVER
+  - match: silver
+    layer: SILVER
+  - match: landing
+    layer: BRONZE
+  - match: raw
+    layer: BRONZE
+  - match: bronze
+    layer: BRONZE
+  - match: external
+    layer: EXTERNAL
+  - match: source
+    layer: EXTERNAL
+
+# Which tag keys carry which meaning. Values are matched case-insensitively
+# against tag_name. Used to color and group tag pills.
+tag_roles:
+  domain:
+    - domain
+    - business_domain
+    - data_domain
+  sensitivity:
+    - sensitivity
+    - classification
+    - pii
+    - data_classification
+  abac:
+    - abac
+    - policy
+    - access_policy
+
+# Tag values (any role) that should render as high-severity (red) pills.
+high_sensitivity_values:
+  - pii
+  - high
+  - restricted
+  - confidential-high
+
+# UC group names considered administrators of UCViz (admin panel access).
+# Matched against the signed-in user's direct SCIM groups. "admins" is the
+# workspace-admins group; set your own UCViz admin group at a customer.
+admin_groups:
+  - account admins
+  - metastore_admins
+  - admins
+
+# UCViz is read-only. The Admin -> External Sources tab can register External
+# Metadata / external lineage in Unity Catalog (as the app SP); those write
+# controls are hidden unless this is true.
+enable_external_source_writes: false

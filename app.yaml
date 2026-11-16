@@ -1,0 +1,12 @@
+# Databricks injects STREAMLIT_SERVER_PORT (= DATABRICKS_APP_PORT) and
+# STREAMLIT_SERVER_ADDRESS=0.0.0.0 at runtime — do NOT hardcode --server.port,
+# or Streamlit binds the wrong port and the app becomes unreachable.
+command: ['streamlit', 'run', 'app.py']
+
+env:
+  # The SQL warehouse is bound as an app resource named 'sql-warehouse-id'
+  # when the app is created (INSTALL.md step 4) — no ID is hardcoded here.
+  - name: 'DATABRICKS_WAREHOUSE_ID'
+    valueFrom: 'sql-warehouse-id'
+  - name: 'STREAMLIT_BROWSER_GATHER_USAGE_STATS'
+    value: 'false'

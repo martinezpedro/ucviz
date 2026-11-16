@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+UCViz_session_history.md
+.e2e_snap.txt
+ucviz_brief.html
+# personal demo settings (never commit)
+scripts/*.env.local
