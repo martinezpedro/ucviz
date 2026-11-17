@@ -136,6 +136,25 @@ def list_schemas(catalog: str) -> list[str]:
     return df["schema_name"].astype(str).tolist() if not df.empty else []
 
 
+def list_schemas_with_tables(catalog: str) -> list[str]:
+    """Schemas of a catalog that hold at least one table or view.
+
+    Used to pre-select a useful schema: a new catalog also gets an empty
+    ``default`` schema, which sorts first.
+    """
+    safe = (catalog or "").replace("`", "")
+    if not safe:
+        return []
+    try:
+        df = run_query(
+            f"SELECT DISTINCT table_schema FROM `{safe}`.information_schema.tables "
+            "WHERE table_schema <> 'information_schema' ORDER BY table_schema"
+        )
+    except Exception:
+        return []
+    return df["table_schema"].astype(str).tolist() if not df.empty else []
+
+
 def list_tables_in_catalog(catalog: str, limit: int = 5000) -> list[str]:
     """List fully-qualified tables across every schema of one catalog."""
     safe_c = (catalog or "").replace("`", "")

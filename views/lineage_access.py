@@ -26,6 +26,7 @@ from modules.lineage_traversal import (
     lineage_stats,
     list_catalogs,
     list_schemas,
+    list_schemas_with_tables,
     list_tables_in_catalog,
     list_tables_in_schema,
     search_tables,
@@ -109,6 +110,11 @@ def _catalogs(viewer: str, allowed: tuple[str, ...]) -> list[str]:
 @st.cache_data(ttl=600, show_spinner=False)
 def _schemas(viewer: str, catalog: str) -> list[str]:
     return list_schemas(catalog)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _schemas_with_tables(viewer: str, catalog: str) -> list[str]:
+    return list_schemas_with_tables(catalog)
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -628,9 +634,15 @@ def sidebar(cfg, viewer, qp):
                                        _schemas(viewer, catalog))
                        if real_catalog else [])
             sch_opts = ([ALL_SCHEMAS] + schemas) if schemas else ["(none)"]
+        # Pre-select the first schema that has tables, not just the first
+        # name (a new catalog's empty `default` schema sorts first).
+        first_schema = None
+        if schemas:
+            filled = set(_schemas_with_tables(viewer, catalog))
+            first_schema = next((s for s in schemas if s in filled), schemas[0])
         _seed_widget("sel_schema", qp.get("schema"), sch_opts)
-        _prune_widget("sel_schema", sch_opts, schemas[0] if schemas else None)
-        _default_widget("sel_schema", schemas[0] if schemas else None)
+        _prune_widget("sel_schema", sch_opts, first_schema)
+        _default_widget("sel_schema", first_schema)
         schema = st.selectbox("Schema", options=sch_opts, key="sel_schema",
                               label_visibility="collapsed",
                               disabled=all_catalogs)
@@ -998,6 +1010,11 @@ def main():
         elif selected == SEARCH_PROMPT:
             scope_only("Type part of a table name in the sidebar to search "
                        "every catalog, then pick the table to trace.")
+        elif scope_catalog:
+            where = (f"schema `{scope_catalog}.{scope_schema}`" if scope_schema
+                     else f"catalog `{scope_catalog}`")
+            scope_only(f"No tables in {where}. Pick another schema in the "
+                       "sidebar.")
         else:
             scope_only("No tables available here. Confirm the SQL warehouse "
                        "is bound and you (or the app service principal) have "
