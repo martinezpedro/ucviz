@@ -611,6 +611,13 @@ def sidebar(cfg, viewer, qp):
                                key="sel_catalog", label_visibility="collapsed")
         all_catalogs = catalog == ALL_CATALOGS
         real_catalog = bool(catalog) and catalog not in ("(none)", ALL_CATALOGS)
+        # Switching a single catalog -> All catalogs keeps the table on screen.
+        prev_catalog = st.session_state.get("_prev_catalog")
+        st.session_state["_prev_catalog"] = catalog
+        carried = st.session_state.get("sel_table")
+        if not (all_catalogs and prev_catalog not in (None, ALL_CATALOGS)
+                and carried and carried.count(".") == 2):
+            carried = None
 
         st.markdown('<div class="uc-header">Schema</div>',
                     unsafe_allow_html=True)
@@ -635,6 +642,8 @@ def sidebar(cfg, viewer, qp):
             if (q_table and q_table.count(".") == 2
                     and "table_search" not in st.session_state):
                 st.session_state["table_search"] = q_table.split(".")[-1]
+            if carried:
+                st.session_state["table_search"] = carried.split(".")[-1]
             term = st.text_input("Find a table", key="table_search",
                                  placeholder="table name contains…",
                                  label_visibility="collapsed")
@@ -642,6 +651,8 @@ def sidebar(cfg, viewer, qp):
                       if term.strip() else [])
             if q_table and q_table.count(".") == 2 and q_table not in tables:
                 tables = [q_table] + tables
+            if carried and carried not in tables:
+                tables = [carried] + tables
             # A prompt first, so a search never auto-traces its first match.
             options = ([PICK_PROMPT] + tables) if tables else [SEARCH_PROMPT]
         elif schema == ALL_SCHEMAS:
