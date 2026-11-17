@@ -65,14 +65,18 @@ def list_directory_principals() -> list[dict]:
     return out
 
 
-def build_principal_lookup() -> dict:
+def build_principal_lookup(directory: list[dict] | None = None) -> dict:
     """Return ``{normalized_grantee: type}`` from account groups + SPs.
 
-    Never raises: on any SDK/permission error it returns whatever it managed to
-    collect (possibly empty), and ``classify_principal`` falls back to heuristics.
+    Pass ``directory`` (from ``list_directory_principals``) to skip a second
+    SCIM listing. Never raises: on any SDK/permission error it returns whatever
+    it managed to collect (possibly empty), and ``classify_principal`` falls
+    back to heuristics.
     """
     lookup: dict[str, str] = {g: TYPE_GROUP for g in _BUILTIN_GROUPS}
-    for p in list_directory_principals():
+    if directory is None:
+        directory = list_directory_principals()
+    for p in directory:
         lookup[p["grantee"].lower()] = p["type"]
         if p["type"] == TYPE_SP:
             lookup[p["name"].lower()] = TYPE_SP

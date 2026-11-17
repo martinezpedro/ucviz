@@ -8,6 +8,8 @@ users — which group the access comes through.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+
 import streamlit as st
 
 from modules import ui
@@ -45,19 +47,20 @@ MAX_ROWS = 500
 # --------------------------------------------------------------------------- #
 # Cached loaders (keyed on viewer — results depend on the query identity)
 # --------------------------------------------------------------------------- #
-@st.cache_data(ttl=3600, show_spinner=False)
-def _directory() -> list[dict]:
-    return list_directory_principals()
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def _lookup() -> dict:
-    return build_principal_lookup()
-
-
 @st.cache_data(ttl=600, show_spinner=False)
-def _known_grantees(viewer: str, catalogs: tuple[str, ...]) -> list[str]:
-    return list_known_grantees(list(catalogs))
+def _picker_sources(viewer: str, catalogs: tuple[str, ...]):
+    """``(directory, known_grantees, error)`` for the principal picker.
+
+    The SCIM listing (SDK only) runs in the background while the grantee query
+    runs on this thread — run_query needs the Streamlit request context.
+    """
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        scim = pool.submit(list_directory_principals)
+        try:
+            known, err = list_known_grantees(list(catalogs)), None
+        except Exception as exc:
+            known, err = [], str(exc)
+        return scim.result(), known, err
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -106,14 +109,12 @@ def _drill(label: str, options: list[str], key: str) -> str:
 
 def _picker(cfg, viewer, catalogs):
     """Principal picker; returns (grantee, type)."""
-    directory = _directory()
-    lookup = _lookup()
+    with st.spinner("Loading users, groups and service principals…"):
+        directory, known, err = _picker_sources(viewer, tuple(catalogs))
+    if err:
+        st.warning(f"Could not list grantees: {err}")
+    lookup = build_principal_lookup(directory)
     names = {p["grantee"]: p["name"] for p in directory}
-    try:
-        known = _known_grantees(viewer, tuple(catalogs))
-    except Exception as exc:
-        st.warning(f"Could not list grantees: {exc}")
-        known = []
     options = sorted(set(known) | set(names))
     ptype = {g: classify_principal(g, lookup) for g in options}
 
