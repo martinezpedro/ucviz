@@ -422,6 +422,14 @@ updated and the URL doesn't change. Removing a catalog hides it from UCViz but
 doesn't revoke the grants already given to the app; the catalog owner can
 revoke them (see "For administrators").
 
+### How do I give more people access to UCViz?
+
+Either add them under **Compute → Apps → ucviz → Permissions** (**Can Use**),
+or put the group or emails in the installer's **Users** box and click
+**Run all**. A group is easier to maintain than a list of people. Everyone with
+access sees who has access to what in the covered catalogs, so keep it to
+people who should see that. Users don't need any data grants of their own.
+
 ### How do I update UCViz to a newer version?
 
 In the UCViz Git folder click the branch name (`main`) → **Pull**, then open
@@ -457,7 +465,7 @@ in the repository):
 | Box | What to enter |
 |---|---|
 | Catalogs | `all` (default) = every catalog you can see, or a comma-separated list. In production a list is usually better: the app gets read access, and MANAGE if enabled, on each covered catalog. |
-| Admin group | Group allowed into the Admin page. |
+| Admin group | Optional. Group allowed into the Admin page; it also gets Can Manage on the app. Empty = workspace `admins`, `metastore_admins` and `account admins` only. |
 | Users | Who may use the app (Can Use): a group, or comma-separated user emails. |
 | SQL warehouse | Name or ID; empty = a running serverless warehouse. |
 | App name | Default `ucviz`. |
