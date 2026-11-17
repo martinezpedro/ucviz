@@ -426,7 +426,8 @@ revoke them (see "For administrators").
 
 Either add them under **Compute → Apps → ucviz → Permissions** (**Can Use**),
 or put the group or emails in the installer's **Users** box and click
-**Run all**. A group is easier to maintain than a list of people. Everyone with
+**Run all**. The installer replaces the app's permission list with what's in
+the box, so keep anyone who already has access in it (comma-separated). A group is easier to maintain than a list of people. Everyone with
 access sees who has access to what in the covered catalogs, so keep it to
 people who should see that. Users don't need any data grants of their own.
 
