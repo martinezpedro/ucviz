@@ -21,7 +21,8 @@ should cover. Section 0 below explains every prerequisite in detail.
      list is usually better, because the app gets read access (and `MANAGE`)
      on every catalog it covers
    - **Admin group** — who can open UCViz's Admin page
-   - **Users group** — who can use the app
+   - **Users** — who can use the app: a group, or one or more user emails
+     (comma-separated)
    - **SQL warehouse** — name or ID (empty = first serverless warehouse)
    - **Create demo data** — `yes` only for a test workspace: builds a small
      synthetic bronze → silver → gold demo so you can see UCViz working

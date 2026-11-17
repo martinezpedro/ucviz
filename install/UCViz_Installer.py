@@ -19,7 +19,7 @@
 # MAGIC |---|---|
 # MAGIC | `catalogs` | `all` (default) = every catalog you can see, or a comma-separated list, e.g. `bronze_cat, silver_cat, gold_cat`. On a production metastore a list is usually better: the app's service principal gets read (and, with `grant_manage`, MANAGE) on each covered catalog |
 # MAGIC | `admin_group` | Group whose members can open UCViz's Admin page |
-# MAGIC | `users_group` | Group allowed to use the app (gets *Can Use*) |
+# MAGIC | `users_group` | Who may use the app (gets *Can Use*): a group name, or comma-separated user emails, e.g. `jane@company.com, ucviz-users` |
 # MAGIC | `warehouse` | SQL warehouse **name or ID**. Leave empty to use the first serverless warehouse |
 # MAGIC | `app_name` | Name of the app (default `ucviz`) |
 # MAGIC | `grant_manage` | `yes` = grant MANAGE on the catalogs so the app can see everyone's grants (recommended; needs security sign-off) |
@@ -39,7 +39,7 @@ dbutils.library.restartPython()
 
 dbutils.widgets.text("catalogs", "all", "1. Catalogs (all, or comma-separated)")
 dbutils.widgets.text("admin_group", "", "2. Admin group")
-dbutils.widgets.text("users_group", "", "3. Users group (Can Use)")
+dbutils.widgets.text("users_group", "", "3. Users: group or emails (Can Use)")
 dbutils.widgets.text("warehouse", "", "4. SQL warehouse name or ID")
 dbutils.widgets.text("app_name", "ucviz", "5. App name")
 dbutils.widgets.dropdown("grant_manage", "yes", ["yes", "no"], "6. Grant MANAGE on catalogs")
@@ -441,8 +441,10 @@ step("Deploy", "OK" if state == "SUCCEEDED" else "FAILED",
 
 acl = [A.AppAccessControlRequest(user_name=me.user_name,
                                  permission_level=A.AppPermissionLevel.CAN_MANAGE)]
-if USERS_GROUP:
-    acl.append(A.AppAccessControlRequest(group_name=USERS_GROUP,
+# Each entry is a group name or a user's email (contains "@").
+for who in [u.strip() for u in USERS_GROUP.split(",") if u.strip()]:
+    key = "user_name" if "@" in who else "group_name"
+    acl.append(A.AppAccessControlRequest(**{key: who},
                                          permission_level=A.AppPermissionLevel.CAN_USE))
 if ADMIN_GROUP:
     acl.append(A.AppAccessControlRequest(group_name=ADMIN_GROUP,

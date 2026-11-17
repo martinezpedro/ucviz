@@ -458,7 +458,7 @@ in the repository):
 |---|---|
 | Catalogs | `all` (default) = every catalog you can see, or a comma-separated list. In production a list is usually better: the app gets read access, and MANAGE if enabled, on each covered catalog. |
 | Admin group | Group allowed into the Admin page. |
-| Users group | Group allowed to use the app (Can Use). |
+| Users | Who may use the app (Can Use): a group, or comma-separated user emails. |
 | SQL warehouse | Name or ID; empty = a running serverless warehouse. |
 | App name | Default `ucviz`. |
 | Grant MANAGE | `yes` so the app can see everyone's grants (needs security sign-off). |
