@@ -121,9 +121,9 @@ Your browser ──► UCViz (Databricks App) ──► SQL warehouse ──► 
 
 | Control | What it does |
 |---|---|
-| **Catalog** | Pick a catalog, or **★ All catalogs** to search for a table anywhere. |
-| **Schema** | Pick a schema, or **★ All schemas** to work across the whole catalog. |
-| **Table** | Pick one table, or **★ All tables in this schema / catalog** to graph the whole scope. With ★ All catalogs, type part of a name in **Find a table**, then pick a match (up to 200 matches are listed). |
+| **Catalog** | Pick a catalog, or **★ All catalogs** to search for a table anywhere. Switching to ★ All catalogs keeps the table you had open. |
+| **Schema** | Pick a schema, or **★ All schemas** to work across the whole catalog. A new catalog starts on its first schema that has tables (empty ones such as `default` are skipped). |
+| **Table** | Pick one table, or **★ All tables in this schema / catalog** to graph the whole scope (a whole scope always traces upstream only). With ★ All catalogs, type part of a name in **Find a table**, then pick a match (up to 200 matches are listed). |
 | **Lineage** | **Full trace (cross-catalog)** or **Step-by-step (real-time API)**. |
 | **Direction** (Full trace only) | **Upstream + downstream** or **Upstream only**. |
 | **Max Lineage Hops** | How many steps away from the table to trace (1–10, default 5). |
@@ -167,6 +167,10 @@ principals with access, health warnings, distinct tags, tables with RLS,
 masked columns, and unclassified sensitive columns.
 
 ### Principal Access
+
+The first visit takes a few seconds while UCViz loads the workspace's users,
+groups and service principals ("Loading users, groups and service
+principals…"); after that it's cached for 10 minutes.
 
 1. Choose a **Type** (All, Groups, Users, Service principals) and pick a
    **Principal**, or type one in **…or type one** (a user's email, a group
@@ -314,6 +318,19 @@ ago and never rewritten, or written in the last hour (try **Step-by-step**,
 which uses the real-time API). Also check **Max Lineage Hops** isn't set to 1
 and that **Upstream only** isn't hiding consumers you expected.
 
+### Why does a Bronze schema show tables with no arrows?
+
+With **★ All tables in this schema** picked, UCViz traces each table
+**upstream only**, and Bronze tables usually have nothing upstream (they're
+loaded from files or outside sources). Pick a single Bronze table instead and
+keep **Upstream + downstream** on to see the Silver and Gold tables built from
+it.
+
+### The Lineage page says "No tables in schema …".
+
+The selected schema is empty (or the app can't see its tables). Pick another
+schema in the sidebar. Every new catalog has an empty `default` schema.
+
 ### Why does my Gold table stop at Silver instead of going back to Bronze?
 
 Either the Silver table has no recorded upstream lineage, or **Max Lineage
@@ -383,7 +400,8 @@ columns for every table in the chain. On a large metastore that takes
 The app's service principal can't read `system.access.table_lineage`. The graph
 still shows real-time lineage for tables the app can see, but cross-catalog
 history may be incomplete. Your administrator can run **Admin → Connection
-Test** to confirm and grant access.
+Test** to confirm and grant access. On **Databricks Free Edition** this grant
+can't be made (no metastore admin), so this warning is expected there.
 
 ### Can I share what I'm looking at?
 
