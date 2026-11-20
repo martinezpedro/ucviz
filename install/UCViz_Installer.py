@@ -25,6 +25,7 @@
 # MAGIC | `grant_manage` | `yes` = grant MANAGE on the catalogs so the app can see everyone's grants (recommended; needs security sign-off) |
 # MAGIC | `make_sp_workspace_admin` | `yes` = add the app's service principal to the workspace `admins` group so it can read users' group memberships |
 # MAGIC | `action` | `install` (also updates) or `uninstall` |
+# MAGIC | `query_identity` | `app` (default) = every query runs as the app's service principal, so all users see the same full picture. `viewer` = on-behalf-of-user: grant, tag and table queries run as the signed-in user and show only what they can see (set `grant_manage` to `no`). The real-time lineage API and group lookups still use the service principal |
 # MAGIC | `create_demo_data` | `yes` = also build a small synthetic bronze → silver → gold demo (catalogs `ucviz_demo_bronze/_silver/_gold`) with lineage, tags and grants, and add it to the covered catalogs. Handy for a test or Free Edition workspace. With `uninstall`, `yes` also removes it. |
 
 # COMMAND ----------
@@ -46,6 +47,7 @@ dbutils.widgets.dropdown("grant_manage", "yes", ["yes", "no"], "6. Grant MANAGE 
 dbutils.widgets.dropdown("make_sp_workspace_admin", "yes", ["yes", "no"], "7. Make app SP workspace admin")
 dbutils.widgets.dropdown("action", "install", ["install", "uninstall"], "8. Action")
 dbutils.widgets.dropdown("create_demo_data", "no", ["no", "yes"], "9. Create demo data")
+dbutils.widgets.dropdown("query_identity", "app", ["app", "viewer"], "10. Queries run as (app SP / viewer = OBO)")
 
 # COMMAND ----------
 
@@ -77,6 +79,7 @@ GRANT_MANAGE = dbutils.widgets.get("grant_manage") == "yes"
 MAKE_ADMIN = dbutils.widgets.get("make_sp_workspace_admin") == "yes"
 ACTION = dbutils.widgets.get("action")
 DEMO = dbutils.widgets.get("create_demo_data") == "yes"
+QUERY_IDENTITY = dbutils.widgets.get("query_identity")
 DEMO_CATALOGS = ["ucviz_demo_bronze", "ucviz_demo_silver", "ucviz_demo_gold"]
 DEMO_SCHEMAS = ["ucviz_demo_bronze", "ucviz_demo_silver", "ucviz_demo_gold"]
 
@@ -333,7 +336,7 @@ cfg = yaml.safe_load(cfg_text) or {}
 # "all" leaves the app unfiltered, so catalogs granted to it later show up too.
 cfg["catalogs"] = [] if ALL_CATALOGS else CATALOGS
 cfg["admin_groups"] = sorted({*(cfg.get("admin_groups") or []), *([ADMIN_GROUP] if ADMIN_GROUP else [])})
-cfg["query_identity"] = "app"
+cfg["query_identity"] = QUERY_IDENTITY
 
 try:
     w.workspace.delete(DEPLOY_DIR, recursive=True)
@@ -358,7 +361,8 @@ for root, dirs, files in os.walk(REPO_ROOT):
         copied += 1
 
 step("Copy app source", "OK", f"{copied} files → {DEPLOY_DIR}")
-step("Configuration", "OK", f"catalogs={cfg['catalogs'] or 'all'}, admin_groups={cfg['admin_groups']}")
+step("Configuration", "OK", f"catalogs={cfg['catalogs'] or 'all'}, admin_groups={cfg['admin_groups']}, "
+     f"query_identity={QUERY_IDENTITY}")
 
 # COMMAND ----------
 
@@ -477,11 +481,17 @@ if manual_sql:
              "Connection Test</b> in the app already shows <b>Granted</b> for every "
              "line, the access is already covered (for example by a grant to "
              "<code>account users</code>) and you can ignore these.</p>")
+obo_hint = ("<p><b>On-behalf-of-user mode:</b> queries run as each signed-in user, so each "
+            "user sees only the grants and objects their own permissions allow. For lineage history "
+            "each user also needs <code>SELECT</code> on <code>system.access.table_lineage</code> "
+            "(and <code>USE</code> on <code>system</code> / <code>system.access</code>); without it "
+            "lineage falls back to the real-time API.</p>") if QUERY_IDENTITY == "viewer" else ""
 demo_hint = ("<p><b>Demo data:</b> in the app pick catalog <code>ucviz_demo_gold</code> (or the "
              "<code>ucviz_demo_gold</code> schema) → <code>customer_360</code>. Lineage can take a few "
              "minutes to appear the first time.</p>") if DEMO else ""
 displayHTML(f"""
 <h2>UCViz: {'ready' if not manual_sql else 'installed — a few grants still needed'}</h2>
+{obo_hint}
 {demo_hint}
 <p><b>Open the app:</b> <a href="{app.url}" target="_blank">{app.url}</a></p>
 <p>First check: in the app, <b>Settings → Admin → Connection Test</b> — every line should say <b>Granted</b>.

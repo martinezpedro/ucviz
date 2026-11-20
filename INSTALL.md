@@ -27,6 +27,11 @@ should cover. Section 0 below explains every prerequisite in detail.
    - **Create demo data** — `yes` only for a test workspace: builds a small
      synthetic bronze → silver → gold demo so you can see UCViz working
      before pointing it at real data
+   - **Queries run as** — `app` (default): the app's service principal reads
+     everything, so all users see the same full picture. `viewer`
+     (on-behalf-of-user): each user sees only what their own permissions
+     allow, and the service principal doesn't need `MANAGE` (set *Grant
+     MANAGE* to `no`)
    - leave the rest as they are
 4. **Click Run all.** It creates the app, binds the warehouse, writes the
    configuration, grants the app read access, makes its service principal a

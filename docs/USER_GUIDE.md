@@ -474,6 +474,7 @@ in the repository):
 | Make app SP workspace admin | `yes` so Principal Access can read group memberships. |
 | Action | `install` (also updates) or `uninstall`. |
 | Create demo data | `yes` only on a test workspace. |
+| Queries run as | `app` (default): everything runs as the app's service principal, so every user sees the same full picture. `viewer`: on-behalf-of-user, so grant, tag and table queries run as the signed-in user and show only what they can see; set Grant MANAGE to `no`. Real-time lineage and group lookups still use the service principal. |
 
 4. Click **Run all**. The summary at the bottom shows the app URL, what was
    done, and the exact SQL for any grant your account couldn't make (usually
@@ -522,7 +523,7 @@ GRANT MANAGE ON CATALOG <catalog> TO `<app-sp-application-id>`;
 |---|---|
 | `catalogs` | Catalogs UCViz may scan. Empty = every catalog the app can see (what the installer writes for `all`). |
 | `admin_groups` | Groups allowed into the Admin page. |
-| `query_identity` | `app` (default: the service principal runs all queries) or `viewer` (queries run as the signed-in user). |
+| `query_identity` | `app` (default: the service principal runs all queries) or `viewer` (on-behalf-of-user: SQL runs as the signed-in user; set by the installer's *Queries run as* box). |
 | `max_hops` | Default lineage depth. |
 | `max_graph_tables` | Table count above which a whole-scope pick must be narrowed. |
 | `layer_rules` | Name substring → layer. |
